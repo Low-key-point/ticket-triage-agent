@@ -52,14 +52,14 @@ class Predictor:
         self.base = self.package["base_model"]
         self.metadata = self.package["metadata"]
         if self.metadata.get("sklearn") != sklearn.__version__:
-            raise ValueError("Model sklearn version mismatch; use the locked environment or retrain")
+            raise ValueError("模型的机器学习库版本不匹配，请使用锁定环境或重新训练")
         if set(self.model.classes_) != set(MAPPING):
-            raise ValueError("Model label schema does not match knowledge schema")
+            raise ValueError("模型类别与知识库类别不一致")
 
     def predict(self, text):
         prob = self.model.predict_proba([text])[0]
         if len(prob) != len(MAPPING) or not np.isfinite(prob).all() or np.any(prob < 0) or not np.isclose(prob.sum(), 1):
-            raise ValueError("Invalid probability output")
+            raise ValueError("模型概率输出不合法")
         order = np.argsort(prob)[-3:][::-1]
         candidates = [{"intent": str(self.model.classes_[i]), "probability": float(prob[i])} for i in order]
         features = self.base.named_steps["features"]
@@ -159,7 +159,7 @@ class Agent:
         try:
             candidates, explanation = self.predictor.predict(preview)
             if not candidates or any(c["intent"] not in MAPPING or not 0 <= c["probability"] <= 1 for c in candidates):
-                raise ValueError("Invalid model output")
+                raise ValueError("模型输出不合法")
             trace.append({"state": "classified", "at": now(), "action": "predict"})
         except (ValueError, OSError, RuntimeError) as exc:
             candidates, explanation = [], []
