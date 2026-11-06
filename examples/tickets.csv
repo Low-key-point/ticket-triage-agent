@@ -1,5 +1,6 @@
 ticket_id,text
-example-arrival,When will my new card arrive?
-example-security,My card was stolen yesterday.
-example-outside,What will the weather be tomorrow?
-example-invalid,
+示例-余额,我想查询账户余额
+示例-故障,我的银行卡不能用了
+示例-冻结,请帮我冻结账户
+示例-范围外,请帮我推荐股票
+示例-空值,

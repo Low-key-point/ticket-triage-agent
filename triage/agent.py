@@ -58,7 +58,7 @@ class Predictor:
 
     def predict(self, text):
         prob = self.model.predict_proba([text])[0]
-        if len(prob) != 77 or not np.isfinite(prob).all() or np.any(prob < 0) or not np.isclose(prob.sum(), 1):
+        if len(prob) != len(MAPPING) or not np.isfinite(prob).all() or np.any(prob < 0) or not np.isclose(prob.sum(), 1):
             raise ValueError("Invalid probability output")
         order = np.argsort(prob)[-3:][::-1]
         candidates = [{"intent": str(self.model.classes_[i]), "probability": float(prob[i])} for i in order]
@@ -140,11 +140,11 @@ class Agent:
 
     def submit(self, text, ticket_id=None):
         started = time.perf_counter()
-        if not isinstance(text, str) or not 5 <= len(text.strip()) <= 2000:
-            raise ValidationError("文本去除首尾空白后须为5至2000字符")
+        if not isinstance(text, str) or not 2 <= len(text.strip()) <= 500:
+            raise ValidationError("请输入2至500字符的中文咨询")
         text = text.strip()
-        if ticket_id is not None and (not isinstance(ticket_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", ticket_id)):
-            raise ValidationError("编号须为1至80位字母、数字、下划线或连字符")
+        if ticket_id is not None and (not isinstance(ticket_id, str) or not re.fullmatch(r"[\u4e00-\u9fffA-Za-z0-9_-]{1,80}", ticket_id)):
+            raise ValidationError("编号须为1至80位汉字、字母、数字、下划线或连字符")
         ticket_id = ticket_id or uuid.uuid4().hex[:16]
         fingerprint = hashlib.sha256(text.encode()).hexdigest()
         previous = retry(lambda: self.store.get(ticket_id))
@@ -192,7 +192,8 @@ class Agent:
                   "candidates": candidates, "explanation": explanation, "model_version": self.predictor.metadata["version"],
                   "suggested_intent": intent, "suggested_queue": MAPPING.get(intent), "final_intent": None if review else intent,
                   "final_queue": None if review else MAPPING.get(intent), "knowledge": article, "review_reasons": reasons,
-                  "errors": errors, "trace": trace, "timings": timings, "reused": False}
+                  "errors": errors, "trace": trace, "timings": timings, "reused": False,
+                  "input_language": "中文"}
         record["timings"]["processing_ms"] = (time.perf_counter()-started)*1000
         return retry(lambda: self.store.insert(fingerprint, record))
 

@@ -1,47 +1,28 @@
-"""Read-only live mirror check and fault-injection evidence for skill reuse."""
-import csv
+"""中文数据查看器的真实预览核对与故障注入。"""
 import json
-import time
-from .data import ROOT, DatasetViewer, write_json
+import pyarrow.parquet as pq
+from .data import ROOT, DatasetViewer, SKILL_REVISION, write_json
 
 
 def verify():
-    started = time.perf_counter()
-    with (ROOT/"data/raw/train.csv").open(encoding="utf-8") as f:
-        original = list(csv.DictReader(f))
-    direct_seconds = time.perf_counter()-started
-    evidence = {"skill": "huggingface-datasets", "revision": "25910b3d0ba31a2ba102f901cdc9e008c278a69c", "direct_read_seconds": direct_seconds, "source_of_truth": "pinned GitHub original", "mirror_used_for_training": False}
-    started = time.perf_counter()
+    originals=pq.read_table(ROOT/"data/raw/zh/minds14-zh.parquet",columns=["transcription"]).column(0).to_pylist()
+    evidence={"组件":"公开数据集只读查看器","版本":SKILL_REVISION,"用途":"中文数据预览与分页校验","训练使用镜像":False}
     try:
-        viewer = DatasetViewer()
-        splits = viewer.query("splits")["splits"]
-        match = next(s for s in splits if s["split"] == "train")
-        page = viewer.query("rows", config=match["config"], split="train", offset=0, length=100)
-        observed = [r["row"]["text"] for r in page["rows"]]
-        originals = {r["text"] for r in original}
-        evidence["live"] = {"available": True, "row_count_advertised": page["num_rows_total"], "preview_rows": len(observed), "preview_texts_in_original": sum(t in originals for t in observed), "total_matches_original": page["num_rows_total"] == len(original), "preview_only_not_full_mirror_verification": True}
-    except Exception as exc:
-        evidence["live"] = {"available": False, "error_type": type(exc).__name__, "fallback": "fixed original used"}
-    evidence["viewer_seconds"] = time.perf_counter()-started
-    faults = [
-        ("missing_rows_field", b'{"num_rows_total":3}'),
-        ("empty_page_before_end", b'{"rows":[],"num_rows_total":3}'),
-        ("invalid_total", b'{"rows":[1],"num_rows_total":"three"}'),
-    ]
-    results = []
-    for name, payload in faults:
-        direct_accepts_json = isinstance(json.loads(payload), dict)
-        detected = False
-        try:
-            DatasetViewer(lambda u, p=payload: p).rows("default", "train")
-        except ValueError:
-            detected = True
-        results.append({"fault": name, "json_only_accepts": direct_accepts_json, "adapter_rejects": detected})
-    evidence["fault_comparison"] = results
-    evidence["interpretation"] = "Schema and pagination checks catch these injected response defects; no claim of classification gain. Fixed original downloading already has independent integrity checks."
-    write_json(ROOT/"reports/skill_validation.json", evidence)
-    print(json.dumps(evidence))
+        page=DatasetViewer().query("rows",length=100)
+        texts=[r["row"]["transcription"] for r in page["rows"]]
+        evidence["真实预览"]={"可用":True,"总条数":page["num_rows_total"],"预览条数":len(texts),"与原始文本匹配":sum(t in originals for t in texts),"仅预览核验":True}
+    except (ValueError,OSError,KeyError) as exc:
+        evidence["真实预览"]={"可用":False,"错误类型":type(exc).__name__,"回退":"固定版本原始文件"}
+    results=[]
+    for name,payload in [("缺失字段",b'{"num_rows_total":3}'),("提前空页",b'{"rows":[],"num_rows_total":3}'),("数量类型错误",b'{"rows":[1],"num_rows_total":"3"}')]:
+        rejected=False
+        try: DatasetViewer(lambda u,p=payload:p).query("rows")
+        except ValueError: rejected=True
+        results.append({"故障":name,"普通JSON解析接受":isinstance(json.loads(payload),dict),"适配器拒绝":rejected})
+    evidence["注入故障"]=results
+    evidence["限制"]="只证明结构校验能发现指定故障，不代表分类精度提升。"
+    write_json(ROOT/"reports/skill_validation.json",evidence)
+    print(json.dumps(evidence,ensure_ascii=True))
 
 
-if __name__ == "__main__":
-    verify()
+if __name__=="__main__": verify()

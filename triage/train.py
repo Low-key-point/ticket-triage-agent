@@ -1,111 +1,68 @@
-"""Pre-registered grouped CV, held-out calibration and policy selection."""
+"""中文字符特征分类、训练折内选型、独立校准与验证集阈值选择。"""
 import hashlib
 import json
 import platform
 import time
-from collections import Counter
-
 import joblib
 import numpy as np
 import sklearn
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.frozen import FrozenEstimator
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score
-from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.pipeline import FeatureUnion, Pipeline
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import LinearSVC
-from threadpoolctl import threadpool_limits
-
-from .data import ROOT, write_json
-from .knowledge import MAPPING
-from .policy import input_reasons, redact, sanitize_texts
-
-
-def pipeline(kind, ngram=(1, 2), c=1.0, chars=False):
-    word = TfidfVectorizer(ngram_range=tuple(ngram), sublinear_tf=True, min_df=1, max_features=35000)
-    features = FeatureUnion([("word", word), ("char", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=2, max_features=40000, sublinear_tf=True))], transformer_weights={"word": 1.0, "char": 0.5}) if chars else word
-    estimator = MultinomialNB(alpha=0.3) if kind == "nb" else LogisticRegression(C=c, max_iter=600, random_state=42) if kind == "lr" else LinearSVC(C=c, random_state=42, dual="auto")
-    return Pipeline([("redaction", FunctionTransformer(sanitize_texts)), ("features", features), ("classifier", estimator)])
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.frozen import FrozenEstimator
+from sklearn.metrics import accuracy_score, f1_score
+from .data import ROOT, load_splits, write_json
+from .policy import sanitize_texts, input_reasons
+from .knowledge import MAPPING, SENSITIVE
 
 
-def score(y, prediction):
-    return {"accuracy": float(accuracy_score(y, prediction)), "macro_f1": float(f1_score(y, prediction, average="macro", zero_division=0))}
-
-
-def choose_thresholds(texts, y, probs, labels, config):
-    ix = probs.argsort(axis=1)
-    top = probs[np.arange(len(probs)), ix[:, -1]]
-    margin = top - probs[np.arange(len(probs)), ix[:, -2]]
-    prediction = labels[ix[:, -1]]
-    from .knowledge import SENSITIVE
-    eligible = np.array([not input_reasons(redact(t)) and p not in SENSITIVE for t, p in zip(texts, prediction)])
-    correct = np.array([MAPPING[a] == MAPPING[b] for a, b in zip(y, prediction)])
-    grid = []
-    for tau in config["probability_thresholds"]:
-        for delta in config["margin_thresholds"]:
-            keep = eligible & (top >= tau) & (margin >= delta)
-            count = int(keep.sum())
-            precision = float(correct[keep].mean()) if count else None
-            grid.append({"probability": tau, "margin": delta, "count": count, "coverage": count/len(y), "queue_precision": precision})
-    valid = [g for g in grid if g["count"] >= 30 and g["queue_precision"] >= config["target_queue_precision"]]
-    best = max(valid, key=lambda g: (g["coverage"], g["queue_precision"], g["probability"])) if valid else {"probability": 1.01, "margin": 1.01, "coverage": 0, "queue_precision": None, "count": 0}
-    return best, grid
+def pipeline(kind,C=1.,ngram=(1,3)):
+    classifier=LinearSVC(C=C,random_state=42) if kind=="线性支持向量机" else LogisticRegression(C=C,max_iter=2000,random_state=42) if kind=="逻辑回归" else MultinomialNB(alpha=1.)
+    return Pipeline([("normalize",FunctionTransformer(sanitize_texts)),("features",TfidfVectorizer(analyzer="char",ngram_range=ngram,sublinear_tf=True,max_features=40000)),
+                     ("classifier",classifier)])
 
 
 def train():
-    started = time.perf_counter()
-    config = json.loads((ROOT/"config/experiment.json").read_text())
-    manifest = json.loads((ROOT/"reports/data_manifest.json").read_text())
-    if hashlib.sha256((ROOT/"data/processed/splits.json").read_bytes()).hexdigest() != manifest["processed_sha256"]:
-        raise ValueError("Processed split integrity mismatch; rerun data preparation")
-    splits = json.loads((ROOT/"data/processed/splits.json").read_text(encoding="utf-8"))
-    x = [r["text"] for r in splits["train"]]
-    y = [r["category"] for r in splits["train"]]
-    groups = [r["group"] for r in splits["train"]]
-    cv = list(StratifiedGroupKFold(3, shuffle=True, random_state=42).split(x, y, groups))
-    candidates = []
-    for kind in ["lr", "svm"]:
-        for ngram in config["word_ngram_ranges"]:
-            for c in config["C"]:
-                candidates.append({"kind": kind, "ngram": ngram, "c": c, "chars": False})
-    candidates.append({"kind": "svm", "ngram": [1, 2], "c": 1.0, "chars": True})
-    results = []
-    with threadpool_limits(limits=1):
-        for spec in candidates:
-            t = time.perf_counter()
-            scores = cross_val_score(pipeline(**spec), x, y, cv=cv, scoring="f1_macro", n_jobs=1)
-            results.append({**spec, "fold_macro_f1": scores.tolist(), "mean_macro_f1": float(scores.mean()), "seconds": time.perf_counter()-t})
-            print(json.dumps(results[-1]), flush=True)
-            write_json(ROOT/"reports/cv_results.json", results)
-        best = max(results, key=lambda row: row["mean_macro_f1"])
-        best_spec = {k: best[k] for k in ["kind", "ngram", "c", "chars"]}
-        model = pipeline(**best_spec).fit(x, y)
-        calibration = splits["calibration"]
-        calibrated = CalibratedClassifierCV(FrozenEstimator(model), method="sigmoid").fit([r["text"] for r in calibration], [r["category"] for r in calibration])
-        nb = pipeline("nb").fit(x, y)
-        # Pre-registered word-only comparison for the optional character features.
-        word_only = pipeline("svm", ngram=(1, 2), c=1).fit(x, y)
-    validation = splits["validation"]
-    vx, vy = [r["text"] for r in validation], [r["category"] for r in validation]
-    probs = calibrated.predict_proba(vx)
-    policy, grid = choose_thresholds(vx, vy, probs, calibrated.classes_, config)
-    manifest = json.loads((ROOT/"reports/data_manifest.json").read_text())
-    source_hashes = {name: hashlib.sha256((ROOT/"triage"/name).read_text(encoding="utf-8").replace("\r\n", "\n").encode()).hexdigest() for name in ["data.py", "train.py", "policy.py", "knowledge.py"]}
-    fingerprint = hashlib.sha256(json.dumps({"config": config, "manifest": manifest, "spec": best_spec, "source_hashes": source_hashes}, sort_keys=True).encode()).hexdigest()[:12]
-    metadata = {"version": fingerprint, "selected_spec": best_spec, "policy": policy, "validation": score(vy, calibrated.classes_[probs.argmax(axis=1)]), "sklearn": sklearn.__version__, "python": platform.python_version(), "training_seconds": time.perf_counter()-started, "test_used_for_selection": False}
-    package = {"model": calibrated, "base_model": model, "nb": nb, "word_only": word_only, "majority": Counter(y).most_common(1)[0][0], "metadata": metadata}
+    start=time.perf_counter(); data=load_splits()
+    def xy(part): return [r["text"] for r in data[part]],[r["label"] for r in data[part]]
+    tx,ty=xy("train"); cx,cy=xy("calibration"); vx,vy=xy("validation")
+    groups=[r["group"] for r in data["train"]]
+    specs=[(kind,C,ngram) for kind in ["线性支持向量机","逻辑回归"] for C in [1.,4.] for ngram in [(1,3),(2,4)]]
+    cv=StratifiedGroupKFold(3,shuffle=True,random_state=45)
+    results=[]
+    for kind,C,ngram in specs:
+        scores=cross_val_score(pipeline(kind,C,ngram),tx,ty,groups=groups,cv=cv,scoring="f1_macro",n_jobs=1)
+        results.append({"算法":kind,"C":C,"字符范围":list(ngram),"三折宏F1":scores.tolist(),"平均宏F1":float(scores.mean())})
+    best=max(results,key=lambda r:r["平均宏F1"])
+    base=pipeline(best["算法"],best["C"],tuple(best["字符范围"])).fit(tx,ty)
+    model=CalibratedClassifierCV(FrozenEstimator(base),method="sigmoid").fit(cx,cy)
+    probs=model.predict_proba(vx); ranked=np.sort(probs,axis=1); prediction=model.classes_[probs.argmax(axis=1)]
+    allowed=np.array([not input_reasons(t) and p not in SENSITIVE for t,p in zip(vx,prediction)])
+    searches=[]
+    for p in [.25,.35,.45,.55,.65,.75,.85,.95]:
+        for m in [0.,.05,.10,.20]:
+            mask=allowed&(ranked[:,-1]>=p)&((ranked[:,-1]-ranked[:,-2])>=m)
+            n=int(mask.sum()); correct=sum(MAPPING[a]==MAPPING[b] for a,b,on in zip(prediction,vy,mask) if on)
+            searches.append({"probability":p,"margin":m,"count":n,"coverage":n/len(vy),"queue_precision":correct/n if n else None})
+    feasible=[s for s in searches if s["count"]>=10 and s["queue_precision"]>=.95]
+    policy=max(feasible,key=lambda s:(s["coverage"],s["queue_precision"],s["probability"])) if feasible else {"probability":1.1,"margin":0.,"count":0,"coverage":0.,"queue_precision":None}
+    sources={n:hashlib.sha256((ROOT/"triage"/n).read_text(encoding="utf-8").replace("\r\n","\n").encode()).hexdigest() for n in ["data.py","train.py","policy.py","knowledge.py"]}
+    version=hashlib.sha256(json.dumps({"sources":sources,"split":json.loads((ROOT/"reports/data_manifest.json").read_text(encoding="utf-8")),"best":best},sort_keys=True).encode()).hexdigest()[:12]
+    metadata={"version":version,"language":"中文","dataset":"MInDS-14中文子集","classes":len(MAPPING),"policy":policy,
+              "selected_spec":best,"validation":{"accuracy":float(accuracy_score(vy,prediction)),"macro_f1":float(f1_score(vy,prediction,average="macro"))},
+              "sklearn":sklearn.__version__,"python":platform.python_version(),"source_hashes":sources,"test_used_for_selection":False,
+              "training_seconds":time.perf_counter()-start}
+    baselines={"朴素贝叶斯":pipeline("朴素贝叶斯").fit(tx,ty),"字符逻辑回归":pipeline("逻辑回归").fit(tx,ty)}
     (ROOT/"models").mkdir(exist_ok=True)
-    joblib.dump(package, ROOT/"models/model.joblib", compress=3)
-    metadata["artifact_sha256"] = hashlib.sha256((ROOT/"models/model.joblib").read_bytes()).hexdigest()
-    metadata["source_hashes"] = source_hashes
-    write_json(ROOT/"reports/model_metadata.json", metadata)
-    write_json(ROOT/"reports/threshold_search.json", grid)
-    print(json.dumps(metadata), flush=True)
+    joblib.dump({"model":model,"base_model":base,"metadata":metadata,"baselines":baselines},ROOT/"models/model.joblib",compress=3)
+    write_json(ROOT/"reports/cv_results.json",results); write_json(ROOT/"reports/threshold_search.json",searches)
+    write_json(ROOT/"reports/model_metadata.json",metadata)
+    print(json.dumps(metadata,ensure_ascii=True))
 
 
-if __name__ == "__main__":
-    train()
+if __name__=="__main__": train()

@@ -1,3 +1,1 @@
-"""BANKING77 ticket triage teaching prototype."""
-
-__version__ = "0.1.0"
+"""中文银行客服工单演示原型。"""

@@ -1,43 +1,43 @@
-"""Explicit teaching queues; these are not any bank's organization or policy."""
-from .data import ROOT
-import json
-
-GROUPS = {
-    "卡片物流": "card_arrival card_delivery_estimate get_physical_card getting_spare_card order_physical_card",
-    "卡片使用": "card_linking card_not_working pin_blocked contactless_not_working getting_virtual_card card_acceptance visa_or_mastercard disposable_card_limits pending_card_payment declined_card_payment card_swallowed change_pin virtual_card_not_working get_disposable_virtual_card activate_my_card card_about_to_expire apple_pay_or_google_pay",
-    "转账": "cancel_transfer transfer_not_received_by_recipient declined_transfer pending_transfer transfer_timing beneficiary_not_allowed transfer_fee_charged receiving_money failed_transfer transfer_into_account balance_not_updated_after_bank_transfer",
-    "现金与充值": "pending_cash_withdrawal automatic_top_up top_up_by_bank_transfer_charge pending_top_up top_up_limits wrong_amount_of_cash_received supported_cards_and_currencies top_up_reverted balance_not_updated_after_cheque_or_cash_deposit topping_up_by_card atm_support declined_cash_withdrawal verify_top_up top_up_by_cash_or_cheque wrong_exchange_rate_for_cash_withdrawal top_up_failed top_up_by_card_charge cash_withdrawal_charge",
-    "账户资料": "age_limit edit_personal_details why_verify_identity unable_to_verify_identity passcode_forgotten terminate_account verify_source_of_funds verify_my_identity country_support",
-    "费用与兑换": "exchange_rate card_payment_wrong_exchange_rate extra_charge_on_statement fiat_currency_support exchange_via_app card_payment_fee_charged transaction_charged_twice reverted_card_payment? exchange_charge",
-    "安全与争议": "lost_or_stolen_card card_payment_not_recognised compromised_card direct_debit_payment_not_recognised lost_or_stolen_phone request_refund Refund_not_showing_up cash_withdrawal_not_recognised",
+"""中文业务分类、演示知识与人工接管边界。"""
+LABELS = ["境外用卡", "修改地址", "应用故障", "取款限额", "查询余额", "企业贷款", "银行卡故障",
+          "现金存款", "自动扣款", "冻结账户", "大额支付", "联名账户", "查询近期交易", "账单支付"]
+MAPPING = {
+    "境外用卡": "银行卡服务", "修改地址": "账户服务", "应用故障": "技术支持",
+    "取款限额": "现金业务", "查询余额": "账户查询", "企业贷款": "人工专席",
+    "银行卡故障": "银行卡服务", "现金存款": "现金业务", "自动扣款": "支付服务",
+    "冻结账户": "人工专席", "大额支付": "人工专席", "联名账户": "账户服务",
+    "查询近期交易": "账户查询", "账单支付": "支付服务",
 }
-MAPPING = {label: queue for queue, labels in GROUPS.items() for label in labels.split()}
-SENSITIVE = set(GROUPS["安全与争议"].split()) | {"terminate_account", "verify_source_of_funds"}
+SENSITIVE = {"冻结账户", "企业贷款", "大额支付"}
 QUESTIONS = {
-    "卡片物流": "询问订卡日期、当前配送状态及是否超过页面预计时间；不要索取完整地址。",
-    "卡片使用": "询问卡片类型、具体使用场景及错误提示；不要收集 PIN 或完整卡号。",
-    "转账": "询问转账时间、状态及转账类型；不要收集完整账户信息。",
-    "现金与充值": "询问现金或充值渠道、时间和页面状态；敏感金额凭证交人工渠道处理。",
-    "账户资料": "确认需要更新或核验的信息类型；身份证件和口令仅能在官方安全渠道处理。",
-    "费用与兑换": "确认费用类型、发生时间与币种；由人工结合正式账单及政策核验。",
-    "安全与争议": "请转人工安全处理；演示系统不承诺退款、冻结、挂失或资金追回。",
+    "境外用卡": "确认目的地及用卡场景，引导查看发卡行境外使用说明；不承诺汇率或收费。",
+    "修改地址": "引导在银行官方资料管理页面修改地址；不要在演示工单填写真实住址。",
+    "应用故障": "询问设备系统、错误提示和出现时间；不要收集登录口令或验证码。",
+    "取款限额": "确认取款渠道和需要查询的限额类型；实际额度以银行官方信息为准。",
+    "查询余额": "引导在银行官方应用查看余额；本系统不读取、展示或推断真实余额。",
+    "企业贷款": "转人工企业业务专席核实申请事项；不评估授信资格，不承诺贷款。",
+    "银行卡故障": "询问失败场景及错误提示；不要收集完整卡号、安全码或支付密码。",
+    "现金存款": "确认现金存入渠道和页面状态；涉及真实金额与凭证请走银行安全渠道。",
+    "自动扣款": "确认自动扣款设置或记录查询需求；若非本人授权，转人工安全处理。",
+    "冻结账户": "请求立即联系银行官方人工安全渠道；演示系统不会实际冻结或解冻账户。",
+    "大额支付": "转人工核验大额支付事项；不执行支付、不绕过额度或风控。",
+    "联名账户": "引导向官方渠道了解联名账户条件及成员权限；不办理开户或权限变更。",
+    "查询近期交易": "引导在官方账户明细页查看近期交易；本系统不读取真实流水。",
+    "账单支付": "确认账单类型并指向官方支付入口；本系统只记录咨询，不代付账单。",
 }
 
 
 class Knowledge:
-    version = "demo-kb-1.0"
+    version = "中文演示知识库-2.0"
 
     def __init__(self):
-        labels_path = ROOT / "config/labels.json"
-        labels = json.loads(labels_path.read_text(encoding="utf-8")) if labels_path.exists() else list(MAPPING)
-        entries = [x for values in GROUPS.values() for x in values.split()]
-        if len(entries) != len(set(entries)) or set(labels) != set(MAPPING):
-            raise ValueError("Knowledge mapping must cover every label exactly once")
+        if set(LABELS) != set(MAPPING) or set(LABELS) != set(QUESTIONS):
+            raise ValueError("中文业务与知识条目不完整")
 
     def lookup(self, intent):
         if intent not in MAPPING:
             return None
-        return {"id": "kb-" + intent, "version": self.version, "intent": intent, "queue": MAPPING[intent],
-                "title": intent.replace("_", " "), "instructions": QUESTIONS[MAPPING[intent]],
-                "escalation": "分类不明确、出现个人敏感信息或用户要求执行实际账户操作时转人工。",
+        return {"id": "知识-"+intent, "version": self.version, "intent": intent,
+                "queue": MAPPING[intent], "title": intent, "instructions": QUESTIONS[intent],
+                "escalation": "低置信度、敏感内容、范围外业务或工具失败时转人工。",
                 "disclaimer": "课程自编演示说明，不是银行官方政策。"}

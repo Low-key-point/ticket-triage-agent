@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ticket-triage-agent"
-version = "0.1.0"
-description = "Offline BANKING77 ticket triage with human review"
+version = "2.0.0"
+description = "中文银行咨询分类与复核工作流"
 requires-python = ">=3.11"
 
 [tool.setuptools.packages.find]
