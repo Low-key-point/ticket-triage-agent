@@ -113,7 +113,7 @@ class Store:
         return [r for r in records if not status or r["status"] == status]
 
     def review(self, ticket_id, intent, reason):
-        if intent not in MAPPING:
+        if not isinstance(intent, str) or intent not in MAPPING:
             raise ValidationError("请选择合法意图")
         if not isinstance(reason, str) or not 2 <= len(reason.strip()) <= 500:
             raise ValidationError("请填写2至500字符的复核理由")
@@ -162,6 +162,7 @@ class Agent:
                 raise ValueError("Invalid model output")
             trace.append({"state": "classified", "at": now(), "action": "predict"})
         except (ValueError, OSError, RuntimeError) as exc:
+            candidates, explanation = [], []
             errors.append("model_error:" + type(exc).__name__)
             trace.append({"state": "failed", "at": now(), "action": "model_error_then_human_fallback"})
         timings["classification_ms"] = (time.perf_counter()-step)*1000
