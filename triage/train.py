@@ -94,7 +94,7 @@ def train():
     probs = calibrated.predict_proba(vx)
     policy, grid = choose_thresholds(vx, vy, probs, calibrated.classes_, config)
     manifest = json.loads((ROOT/"reports/data_manifest.json").read_text())
-    source_hashes = {name: hashlib.sha256((ROOT/"triage"/name).read_bytes()).hexdigest() for name in ["data.py", "train.py", "policy.py", "knowledge.py"]}
+    source_hashes = {name: hashlib.sha256((ROOT/"triage"/name).read_text(encoding="utf-8").replace("\r\n", "\n").encode()).hexdigest() for name in ["data.py", "train.py", "policy.py", "knowledge.py"]}
     fingerprint = hashlib.sha256(json.dumps({"config": config, "manifest": manifest, "spec": best_spec, "source_hashes": source_hashes}, sort_keys=True).encode()).hexdigest()[:12]
     metadata = {"version": fingerprint, "selected_spec": best_spec, "policy": policy, "validation": score(vy, calibrated.classes_[probs.argmax(axis=1)]), "sklearn": sklearn.__version__, "python": platform.python_version(), "training_seconds": time.perf_counter()-started, "test_used_for_selection": False}
     package = {"model": calibrated, "base_model": model, "nb": nb, "word_only": word_only, "majority": Counter(y).most_common(1)[0][0], "metadata": metadata}

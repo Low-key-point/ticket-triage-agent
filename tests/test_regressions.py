@@ -55,3 +55,18 @@ def test_training_checksum_validation_precedes_training():
 def test_viewer_rejects_page_beyond_requested_length():
     with pytest.raises(ValueError, match="row count"):
         DatasetViewer(lambda u: b'{"rows":[1,2],"num_rows_total":2}').query("rows", length=1, offset=0)
+
+
+def test_malformed_review_intent_returns_validation_error(tmp_path):
+    from triage.web import create_app
+    client = create_app(Agent(StubPredictor(), Store(tmp_path/"shape.sqlite"), Knowledge())).test_client()
+    response = client.post("/api/tickets/missing/review", json={"intent": [], "reason": "check"})
+    assert response.status_code == 400
+
+
+def test_invalid_model_candidates_are_discarded(tmp_path):
+    predictor = StubPredictor()
+    agent = Agent(predictor, Store(tmp_path/"schema.sqlite"), Knowledge())
+    with patch.object(predictor, "predict", return_value=([{"intent": "unknown", "probability": .99}], [])):
+        result = agent.submit("When will my card arrive?")
+    assert result["candidates"] == [] and result["status"] == "needs_review"
