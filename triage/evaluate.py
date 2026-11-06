@@ -86,6 +86,17 @@ def evaluate():
     eligible = np.array([not input_reasons(redact(t)) and p not in SENSITIVE for t, p in zip(x, prediction)])
     selected = eligible & (top >= policy["probability"]) & (margins >= policy["margin"])
     routing = selection_metrics(y, prediction, selected)
+    reviewed = ~selected
+    correct_intent = y == prediction
+    routing["reviewed_total"] = int(reviewed.sum())
+    routing["correct_intents_sent_to_review"] = int((reviewed & correct_intent).sum())
+    routing["review_rate_among_correct_intents"] = float((reviewed & correct_intent).sum()/correct_intent.sum())
+    routing["review_rate_note"] = "Includes policy-mandated sensitive review; not all deferrals are unnecessary"
+    safe = np.array([not input_reasons(redact(t)) and truth not in SENSITIVE for t, truth in zip(x, y)])
+    safe_correct = safe & correct_intent
+    routing["safe_correct_count"] = int(safe_correct.sum())
+    routing["safe_correct_deferred_count"] = int((safe_correct & reviewed).sum())
+    routing["safe_correct_defer_rate"] = float((safe_correct & reviewed).sum()/safe_correct.sum()) if safe_correct.any() else None
     calibrated_reliability = reliability(y, prediction, probs)
     class_report = classification_report(y, prediction, output_dict=True, zero_division=0)
     write_json(ROOT/"reports/classification_report.json", class_report)
@@ -129,6 +140,15 @@ def evaluate():
             t = time.perf_counter()
             agent.submit(x[i], "perf-"+str(i))
             latency.append((time.perf_counter()-t)*1000)
+        from .web import create_app
+        client = create_app(agent).test_client()
+        http_latency = []
+        for i in range(200):
+            t = time.perf_counter()
+            response = client.post("/api/tickets", json={"text": x[i], "ticket_id": "http-perf-"+str(i)})
+            if response.status_code != 200:
+                raise RuntimeError("HTTP performance request failed")
+            http_latency.append((time.perf_counter()-t)*1000)
     group_results = {}
     for group in sorted({c["group"] for c in CASES}):
         subset = [r for r in boundary if r["group"] == group]
@@ -141,12 +161,14 @@ def evaluate():
         "boundary": {"synthetic": True, "passed": sum(r["passed"] for r in boundary), "total": len(boundary), "groups": group_results, "review_recall": sum(r["actual"] == "needs_review" for r in review_rows)/len(review_rows)},
         "workflow": {"total": len(workflow), "automatic_correct": sum(r["auto_queue_correct"] for r in workflow), "waiting_before_scripted_review": sum(r["before_review"] == "needs_review" for r in workflow), "completed_correct_after_oracle_review": sum(r["final_queue_correct"] for r in workflow), "oracle_review_is_not_human_evidence": True},
         "performance": {"requests": 200, "concurrency": 1, "cold_model_load_ms": cold*1000, "median_ms": statistics.median(latency), "p95_ms": float(np.percentile(latency, 95)), "max_ms": max(latency), "scope": "Agent.submit including SQLite; excludes HTTP/browser/network", "platform": platform.platform(), "processor": platform.processor(), "logical_cpus": os.cpu_count()},
+        "http_performance": {"requests": 200, "p95_ms": float(np.percentile(http_latency, 95)), "median_ms": statistics.median(http_latency), "scope": "Flask in-process HTTP client through validation, workflow, SQLite and response serialization; excludes actual network/browser rendering"},
         "limitations": ["No user interviews or human time study", "Synthetic boundaries are not a comprehensive unknown-input benchmark", "Queue mapping is a teaching policy", "English only; language heuristics are incomplete", "Oracle review measures interface completion, not autonomous accuracy"],
     }
     write_json(ROOT/"reports/evaluation.json", results)
     write_json(ROOT/"reports/boundary_results.json", boundary)
     write_json(ROOT/"reports/workflow_results.json", workflow)
     write_json(ROOT/"reports/performance_samples.json", latency)
+    write_json(ROOT/"reports/http_performance_samples.json", http_latency)
     write_json(ROOT/"reports/boundary_cases.json", CASES)
     print(json.dumps(results, ensure_ascii=True, indent=2))
 
