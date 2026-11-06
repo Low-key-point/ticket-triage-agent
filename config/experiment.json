@@ -1,0 +1,15 @@
+{
+  "seed": 42,
+  "source_revision": "57ec275d8078af65b7731c2a98be812d844a6d6b",
+  "skill_revision": "25910b3d0ba31a2ba102f901cdc9e008c278a69c",
+  "split_fractions": [0.70, 0.15, 0.15],
+  "folds": 3,
+  "word_ngram_ranges": [[1, 1], [1, 2]],
+  "C": [1.0, 4.0],
+  "character_ngram_range": [3, 5],
+  "probability_thresholds": [0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95],
+  "margin_thresholds": [0.0, 0.05, 0.1, 0.2],
+  "target_queue_precision": 0.95,
+  "target_coverage": 0.5,
+  "target_macro_f1": 0.8
+}

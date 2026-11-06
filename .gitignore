@@ -5,9 +5,16 @@ __pycache__/
 .venv/
 *.pyc
 data/raw/
+data/processed/
+data/runtime/
 models/
 logs/
 *.db
 *.sqlite
 *.sqlite3
 .work/
+.pytest_cache/
+*.egg-info/
+submission/
+local-deliverables/
+reports/
