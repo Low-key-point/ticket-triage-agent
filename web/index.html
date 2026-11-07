@@ -35,5 +35,4 @@
 <button id="generate" class="primary">开始生成（调用 API）</button></article>
 <article class="panel"><div class="panel-heading"><h2>批次与候选实验</h2><button id="refresh-generation" class="secondary">刷新</button></div><label for="generation-batch">选择批次</label><select id="generation-batch"></select><p id="generation-status" class="notice">尚无生成批次。先配置密钥，再从一类、两条开始。</p><div class="actions"><a id="download-generation" class="secondary" hidden>下载本批次 JSON</a><button id="train-candidate" class="secondary" disabled>用已审核样本训练候选模型</button></div><p class="helper">候选实验使用已审核的增强样本，沿用基础模型超参数和校准集，在同一验证集上比较指标。候选模型独立保存。</p><div id="candidate-experiment" class="notice"></div></article></div>
 <article class="panel generation-results"><h2>逐条审核</h2><p class="helper">核对表达自然程度、类别是否正确、是否含其他诉求。只有点击“保留”的训练候选参与实验；自动隔离样本不可批准。模拟样本可填入工单页试用。</p><div id="synthetic-samples"></div></article></section>
-<footer><span>本地模型 · 可追溯决策 · 人工复核</span><span>知识条目供课程演示与分流处理参考。</span></footer>
 </main></body></html>
