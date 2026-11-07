@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path -Parent $PSScriptRoot)
 $taskPython = Join-Path (Get-Location) '.venv/Scripts/python.exe'
 if (-not (Test-Path -LiteralPath $taskPython)) {
-    throw '先按 README 创建 .venv 并安装 requirements-lock.txt。'
+    throw '先按 README 创建 .venv 并安装 requirements.txt。'
 }
 if (-not (Test-Path -LiteralPath 'models/model.joblib')) {
     throw '先运行 python -m triage.data 和 python -m triage.train。'

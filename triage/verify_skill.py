@@ -1,4 +1,4 @@
-"""中文数据查看器的真实预览核对与故障注入。"""
+"""数据查看器的真实预览核对与故障注入。"""
 import json
 import pyarrow.parquet as pq
 from .data import ROOT, DatasetViewer, SKILL_REVISION, write_json

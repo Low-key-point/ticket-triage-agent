@@ -1,4 +1,4 @@
-"""中文字符特征分类、训练折内选型、独立校准与验证集阈值选择。"""
+"""字符特征分类、训练折内选型、独立校准与验证集阈值选择。"""
 import hashlib
 import json
 import platform

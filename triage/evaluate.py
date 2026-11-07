@@ -1,4 +1,4 @@
-"""冻结中文测试集上的模型、工作流、边界与性能评估。"""
+"""冻结测试集上的模型、工作流、边界与性能评估。"""
 import csv
 import json
 import platform

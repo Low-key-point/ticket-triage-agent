@@ -1,4 +1,4 @@
-"""固定中文数据来源、完整性校验与相似文本分组隔离。"""
+"""固定数据来源、完整性校验与相似文本分组隔离。"""
 from __future__ import annotations
 import hashlib
 import json
