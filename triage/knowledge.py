@@ -1,4 +1,4 @@
-"""中文业务分类、演示知识与人工接管边界。"""
+"""银行业务分类、演示知识与人工接管边界。"""
 LABELS = ["境外用卡", "修改地址", "应用故障", "取款限额", "查询余额", "企业贷款", "银行卡故障",
           "现金存款", "自动扣款", "冻结账户", "大额支付", "联名账户", "查询近期交易", "账单支付"]
 MAPPING = {
@@ -9,6 +9,8 @@ MAPPING = {
     "查询近期交易": "账户查询", "账单支付": "支付服务",
 }
 SENSITIVE = {"冻结账户", "企业贷款", "大额支付"}
+# “其他”仅作为人工复核的最终归档结果，不是模型训练或预测标签。
+REVIEW_MAPPING = {**MAPPING, "其他": "其他工单队列"}
 QUESTIONS = {
     "境外用卡": "确认目的地及用卡场景，引导查看发卡行境外使用说明；不承诺汇率或收费。",
     "修改地址": "引导在银行官方资料管理页面修改地址；不要在演示工单填写真实住址。",
@@ -28,11 +30,11 @@ QUESTIONS = {
 
 
 class Knowledge:
-    version = "中文演示知识库-2.0"
+    version = "演示知识库-3.0"
 
     def __init__(self):
         if set(LABELS) != set(MAPPING) or set(LABELS) != set(QUESTIONS):
-            raise ValueError("中文业务与知识条目不完整")
+            raise ValueError("业务与知识条目不完整")
 
     def lookup(self, intent):
         if intent not in MAPPING:

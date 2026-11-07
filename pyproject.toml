@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ticket-triage-agent"
-version = "2.0.0"
-description = "中文银行咨询分类与复核工作流"
+version = "3.0.0"
+description = "银行工单分类、DeepSeek复核摘要与数据增强"
 requires-python = ">=3.11"
 
 [tool.setuptools.packages.find]
