@@ -18,7 +18,7 @@ import numpy as np
 import sklearn
 
 from .data import ROOT
-from .knowledge import Knowledge, MAPPING
+from .knowledge import Knowledge, MAPPING, REVIEW_MAPPING
 from .policy import decide, redact
 
 
@@ -112,8 +112,20 @@ class Store:
         records = [json.loads(row[0]) for row in rows]
         return [r for r in records if not status or r["status"] == status]
 
+    def save_summary(self, ticket_id, summary):
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT payload FROM tickets WHERE id=?", (ticket_id,)).fetchone()
+            if not row:
+                raise KeyError(ticket_id)
+            record = json.loads(row[0])
+            record["ai_summary"] = summary
+            record["trace"].append({"state": "summarized", "at": now(), "action": "deepseek_review_assistance"})
+            db.execute("UPDATE tickets SET payload=? WHERE id=?", (json.dumps(record, ensure_ascii=False), ticket_id))
+        return record
+
     def review(self, ticket_id, intent, reason):
-        if not isinstance(intent, str) or intent not in MAPPING:
+        if not isinstance(intent, str) or intent not in REVIEW_MAPPING:
             raise ValidationError("请选择合法意图")
         if not isinstance(reason, str) or not 2 <= len(reason.strip()) <= 500:
             raise ValidationError("请填写2至500字符的复核理由")
@@ -125,8 +137,8 @@ class Store:
             record = json.loads(row[0])
             if record["status"] != "needs_review":
                 raise ConflictError("仅待复核工单可以确认，已结束工单不可重复复核")
-            review = {"at": now(), "original_intent": record.get("suggested_intent"), "original_queue": record.get("suggested_queue"), "intent": intent, "queue": MAPPING[intent], "reason": redact(reason.strip()), "actor": "local_reviewer"}
-            record.update(status="closed", final_intent=intent, final_queue=MAPPING[intent], review=review)
+            review = {"at": now(), "original_intent": record.get("suggested_intent"), "original_queue": record.get("suggested_queue"), "intent": intent, "queue": REVIEW_MAPPING[intent], "reason": redact(reason.strip()), "actor": "local_reviewer"}
+            record.update(status="closed", final_intent=intent, final_queue=REVIEW_MAPPING[intent], review=review)
             record["trace"].append({"state": "closed", "at": now(), "action": "human_review"})
             db.execute("UPDATE tickets SET payload=? WHERE id=?", (json.dumps(record, ensure_ascii=False), ticket_id))
         return record
@@ -141,7 +153,7 @@ class Agent:
     def submit(self, text, ticket_id=None):
         started = time.perf_counter()
         if not isinstance(text, str) or not 2 <= len(text.strip()) <= 500:
-            raise ValidationError("请输入2至500字符的中文咨询")
+            raise ValidationError("请输入2至500字符的咨询内容")
         text = text.strip()
         if ticket_id is not None and (not isinstance(ticket_id, str) or not re.fullmatch(r"[\u4e00-\u9fffA-Za-z0-9_-]{1,80}", ticket_id)):
             raise ValidationError("编号须为1至80位汉字、字母、数字、下划线或连字符")

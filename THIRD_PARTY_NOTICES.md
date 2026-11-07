@@ -28,4 +28,8 @@
 
 项目自编部分包括中文清洗规则、划分核验、状态机、知识与队列、界面、复核和实验整合。OpenAI Codex协助设计、编码、调试、实验和文档制作；不声称全部手工原创。
 
-第三方许可原文位于 third_party/，依赖包自身的完整许可随发行包保留。中文报告使用中文参考资料说明，产品名称与许可证编号保持真实名称以便核查。项目不包含英文分类器、翻译模型或付费模型API。
+第三方许可原文位于 third_party/，依赖包自身的完整许可随发行包保留。中文报告使用中文参考资料说明，产品名称与许可证编号保持真实名称以便核查。本项目使用DeepSeek付费API作为可选辅助功能，由用户自行配置；服务条款与生成内容使用条件以DeepSeek官方平台为准。新增数据候选只做来源核查，未并入训练或再分发。
+
+- DeepSeek结构化输出说明：https://api-docs.deepseek.com/zh-cn/guides/json_mode
+- DeepSeek模型与计费说明：https://api-docs.deepseek.com/zh-cn/quick_start/pricing
+- 数据候选核查见 docs/数据集候选核查.md。
