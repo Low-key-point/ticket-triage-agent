@@ -1,4 +1,4 @@
-"""中文文本规范化、脱敏及可解释分流策略。"""
+"""文本规范化、脱敏及可解释分流策略。"""
 import re
 import unicodedata
 from .knowledge import SENSITIVE
