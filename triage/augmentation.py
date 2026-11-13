@@ -242,3 +242,17 @@ def candidate_experiment(splits, samples, output):
               "note": "仅验证集比较；测试文本只用于本地重复隔离，未用于训练、提示或评分。候选模型未替换基础模型，增强不保证提高效果。"}
     joblib.dump({"model": model, "base_model": base, "experiment": result}, output, compress=3)
     return result
+
+
+if __name__ == "__main__":
+    import argparse
+    from .data import write_json
+    parser = argparse.ArgumentParser(description="使用已记录的合成样本重现增强对照，不调用外部接口")
+    parser.add_argument("--replay", required=True, type=Path)
+    args = parser.parse_args()
+    recorded = json.loads(args.replay.read_text(encoding="utf-8"))
+    result = candidate_experiment(load_splits(), recorded["samples"], ROOT / "models/replay-candidate.joblib")
+    result["sample_source"] = str(args.replay)
+    result["review_method"] = recorded["review_method"]
+    write_json(ROOT / "reports/augmentation_replay.json", result)
+    print(json.dumps(result, ensure_ascii=True))

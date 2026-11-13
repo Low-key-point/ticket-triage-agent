@@ -19,3 +19,7 @@ logs/
 submission/
 local-deliverables/
 reports/
+*.doc
+*.docx
+*.pdf
+/docs/

@@ -16,9 +16,13 @@
 
 ![工单分类与分流](demo/工单分流.png)
 
-### 工单摘要与复核详情
+### 复核工作台
 
-![工单摘要与复核详情](demo/工单摘要.png)
+![复核工作台](demo/复核工作台.png)
+
+### 复核完成
+
+![复核完成](demo/复核完成.png)
 
 ## 安装与运行
 
@@ -64,10 +68,20 @@ macOS或Linux将Python命令路径替换为`.venv/bin/python`，启动使用`pyt
 
 ```powershell
 .\.venv\Scripts\python.exe -m triage.evaluate
+.\.venv\Scripts\python.exe -m triage.verify_skill
+.\.venv\Scripts\python.exe -m triage.augmentation --replay demo/augmentation.json
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-也可在安装依赖后运行`.\scripts\reproduce.ps1`，依次准备数据、训练、评估和测试。
+也可在安装依赖后运行`.\scripts\reproduce.ps1`，依次准备数据、核验数据来源、训练、评估、重做增强对照和测试。此命令使用已保存的28条合成样本重做候选训练，不会调用付费接口。生成新样本和新摘要需在页面配置自己的密钥。
+
+`demo/augmentation.json`保存一次DeepSeek生成的28条样本及来源、调用量和核查方式；该批次经过AI辅助内容核查与审核界面确认，用于候选实验复验。重新调用生成接口会产生不同文本，效果以固定验证集比较为准。
+
+## 数据来源检查 Skill
+
+[数据来源检查 Skill](skills/dataset-source-check/SKILL.md)改编自Hugging Face Dataset Viewer的只读工作流，已接入`triage.data`。工具把数据来源和分页参数固定，检查行号、文本及标签，将前100条在线预览与已验SHA256的固定文件交叉核验。网络异常或预览变化单独记录，训练仍使用固定文件。`triage.verify_skill`补充5类错误响应验证。
+
+运行后，`reports/`生成数据来源、模型版本、逐条预测、误差分析、策略对照及增强复验记录；`models/`保存本机训练产物。两者由脚本重建，不随仓库提交。
 
 ## 源码目录
 
@@ -77,6 +91,7 @@ macOS或Linux将Python命令路径替换为`.venv/bin/python`，启动使用`pyt
 | web/ | 工单处理、复核、模型设置、数据增强与实验页面 |
 | scripts/ | 启动与复现脚本 |
 | demo/ | 实际运行截图与示例工单 |
+| skills/ | 数据来源检查工作流、上游版本、权限和限制 |
 | tests/ | 工单流程、接口、故障处理和数据隔离测试 |
 | requirements.txt | 固定版本的运行与测试依赖 |
 

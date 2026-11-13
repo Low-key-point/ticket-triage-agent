@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REVISION = "40ce77cb32a384e4d50a568e1ec39ac804019d33"
 SKILL_REVISION = "25910b3d0ba31a2ba102f901cdc9e008c278a69c"
+SKILL_SOURCE = f"https://github.com/huggingface/skills/blob/{SKILL_REVISION}/skills/huggingface-datasets/SKILL.md"
 SOURCE_URL = f"https://huggingface.co/datasets/PolyAI/minds14/resolve/{REVISION}/zh-CN/train-00000-of-00001.parquet"
 SOURCE_SHA256 = "cea0246e1a54afe5a3ab9d9542baa53c7cb45fc8f4e28e7872ebafefb25ba99d"
 
@@ -33,7 +34,7 @@ def get_bytes(url, retries=2):
 
 
 class DatasetViewer:
-    """只读数据查看器；数据集、语言和划分固定为中文子集。"""
+    """数据来源检查 Skill 的只读工具；不接受任意 URL 或数据集。"""
     def __init__(self, fetch=None):
         self.fetch=fetch or get_bytes
 
@@ -47,7 +48,7 @@ class DatasetViewer:
             offset=params.get("offset",0)
             length=params.get("length",100)
             if config!="zh-CN" or split!="train" or type(offset)!=int or offset<0 or type(length)!=int or not 1<=length<=100:
-                raise ValueError("中文预览参数不合法")
+                raise ValueError("预览参数不合法")
             query.update(config=config,split=split,offset=offset,length=length)
         value=json.loads(self.fetch("https://datasets-server.huggingface.co/"+endpoint+"?"+urllib.parse.urlencode(query)))
         if not isinstance(value,dict): raise ValueError("响应必须为对象")
@@ -57,9 +58,36 @@ class DatasetViewer:
                 raise ValueError("分页字段不合法")
             if len(rows)>length or len(rows)!=min(length,max(0,total-offset)):
                 raise ValueError("分页数量不完整")
+            for index, row in enumerate(rows, offset):
+                if not isinstance(row, dict) or row.get("row_idx") != index:
+                    raise ValueError("分页行号不连续")
+                content = row.get("row")
+                if not isinstance(content, dict) or not isinstance(content.get("transcription"), str) or type(content.get("intent_class")) is not int or content["intent_class"] not in range(14):
+                    raise ValueError("预览文本或标签不合法")
         elif not isinstance(value.get("splits"),list):
             raise ValueError("划分字段不合法")
         return value
+
+
+def check_source(originals, viewer=None):
+    """执行适配 Skill：预览与固定文件交叉核验，联网失败时使用已验哈希的文件。"""
+    from collections import Counter
+    evidence = {"skill": "dataset-source-check", "upstream_revision": SKILL_REVISION,
+                "upstream_source": SKILL_SOURCE, "license": "Apache-2.0",
+                "source_revision": REVISION, "source_sha256": SOURCE_SHA256,
+                "training_source": "固定修订Parquet；在线预览不进入训练"}
+    try:
+        page = (viewer or DatasetViewer()).query("rows", offset=0, length=100)
+        expected = Counter((r["transcription"], r["intent_class"]) for r in originals)
+        preview = Counter((r["row"]["transcription"], r["row"]["intent_class"]) for r in page["rows"])
+        matched = sum((expected & preview).values())
+        evidence.update(status="matched" if matched == len(page["rows"]) and page["num_rows_total"] == len(originals) else "different",
+                        preview_count=len(page["rows"]), matched_count=matched, total=page["num_rows_total"])
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        evidence.update(status="unavailable", error_type=type(exc).__name__)
+    evidence["decision"] = "继续使用固定文件；在线预览差异或不可用单独记录，不改写训练数据"
+    evidence["limits"] = "在线查看器可能随上游变化；预览核验不证明分类质量，隐私数据不经此工具上传"
+    return evidence
 
 
 def prepare():
@@ -78,6 +106,7 @@ def prepare():
     table=pq.read_table(raw,columns=["transcription","intent_class","path"])
     original=table.to_pylist()
     if len(original)!=502: raise ValueError("中文数据数量与固定版本不符")
+    write_json(ROOT/"reports/source_validation.json", check_source(original))
     rows=[]; seen={}; duplicate_count=0; non_chinese_count=0
     for i,row in enumerate(original):
         text=row["transcription"]

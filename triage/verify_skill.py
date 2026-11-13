@@ -1,20 +1,17 @@
 """数据查看器的真实预览核对与故障注入。"""
 import json
 import pyarrow.parquet as pq
-from .data import ROOT, DatasetViewer, SKILL_REVISION, write_json
+from .data import ROOT, DatasetViewer, SKILL_REVISION, check_source, write_json
 
 
 def verify():
-    originals=pq.read_table(ROOT/"data/raw/zh/minds14-zh.parquet",columns=["transcription"]).column(0).to_pylist()
-    evidence={"组件":"公开数据集只读查看器","版本":SKILL_REVISION,"用途":"中文数据预览与分页校验","训练使用镜像":False}
-    try:
-        page=DatasetViewer().query("rows",length=100)
-        texts=[r["row"]["transcription"] for r in page["rows"]]
-        evidence["真实预览"]={"可用":True,"总条数":page["num_rows_total"],"预览条数":len(texts),"与原始文本匹配":sum(t in originals for t in texts),"仅预览核验":True}
-    except (ValueError,OSError,KeyError) as exc:
-        evidence["真实预览"]={"可用":False,"错误类型":type(exc).__name__,"回退":"固定版本原始文件"}
+    originals=pq.read_table(ROOT/"data/raw/zh/minds14-zh.parquet",columns=["transcription", "intent_class"]).to_pylist()
+    evidence={"组件":"数据来源检查Skill","版本":SKILL_REVISION,"用途":"来源预览与固定文件交叉核验","训练使用镜像":False,
+              "真实预览":check_source(originals)}
     results=[]
-    for name,payload in [("缺失字段",b'{"num_rows_total":3}'),("提前空页",b'{"rows":[],"num_rows_total":3}'),("数量类型错误",b'{"rows":[1],"num_rows_total":"3"}')]:
+    for name,payload in [("缺失字段",b'{"num_rows_total":3}'),("提前空页",b'{"rows":[],"num_rows_total":3}'),("数量类型错误",b'{"rows":[1],"num_rows_total":"3"}'),
+                         ("缺失文本标签",b'{"rows":[{"row_idx":0,"row":{}}],"num_rows_total":1}'),
+                         ("行号不连续",b'{"rows":[{"row_idx":2,"row":{"transcription":"test","intent_class":0}}],"num_rows_total":1}')]:
         rejected=False
         try: DatasetViewer(lambda u,p=payload:p).query("rows")
         except ValueError: rejected=True

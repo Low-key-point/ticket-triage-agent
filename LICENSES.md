@@ -10,9 +10,9 @@ MInDS-14数据由PolyAI发布，项目使用zh-CN子集的语音转写及意图�
 
 ## 数据查看器参考
 
-只读数据查看器参考Hugging Face公开数据集工具说明，增加固定来源、字段及分页校验。上游采用Apache License 2.0。
+数据来源检查Skill改编自Hugging Face Dataset Viewer的只读工作流，固定来源、分页、行号与标签校验，并接入数据准备。适配说明位于skills/dataset-source-check/SKILL.md，工具实现由本项目编写。上游作者为Hugging Face，采用Apache License 2.0；本地适配版本1.0。
 
-- 来源：https://github.com/huggingface/skills/tree/25910b3d0ba31a2ba102f901cdc9e008c278a69c
+- 来源：https://github.com/huggingface/skills/blob/25910b3d0ba31a2ba102f901cdc9e008c278a69c/skills/huggingface-datasets/SKILL.md
 - 原版本：25910b3d0ba31a2ba102f901cdc9e008c278a69c
 
 ## 运行依赖
@@ -26,6 +26,10 @@ MInDS-14数据由PolyAI发布，项目使用zh-CN子集的语音转写及意图�
 | pytest | MIT |
 
 各依赖完整许可随其发行包保留。DeepSeek接口服务与生成内容使用条件以官方开放平台条款为准。
+
+## 合成演示数据
+
+demo/augmentation.json中的文本由DeepSeek生成，保留提供方、调用量和核查方式。其用途是重现候选模型对照；不属于MInDS-14原始数据，不作为真实客户工单。模型提示只取训练集示例，生成内容经本地重复隔离后保存。
 
 ## Apache License 2.0 原文
 
