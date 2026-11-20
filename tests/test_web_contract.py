@@ -220,14 +220,19 @@ def test_project_contract_files_and_pinned_dependencies():
 
 
 def test_cli_help_is_available():
+    import os
     import subprocess
     import sys
 
+    env = os.environ | {"PYTHONIOENCODING": "cp1252"}
     result = subprocess.run(
         [sys.executable, "-m", "triage.cli", "--help"],
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
         check=False,
     )
     assert result.returncode == 0
