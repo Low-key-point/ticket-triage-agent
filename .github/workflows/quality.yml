@@ -1,0 +1,36 @@
+name: quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Prepare fixed data
+        run: python -m triage.data
+      - name: Verify source evidence
+        run: python -m triage.verify_skill
+      - name: Train classifier
+        run: python -m triage.train
+      - name: Evaluate classifier and workflow
+        run: python -m triage.evaluate
+      - name: Replay augmentation experiment
+        run: python -m triage.augmentation --replay demo/augmentation.json
+      - name: Run test suite
+        run: python -m pytest -q
+      - name: Upload experiment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: experiment-evidence
+          path: reports/
