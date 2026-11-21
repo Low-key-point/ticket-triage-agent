@@ -175,12 +175,12 @@ def create_app(agent=None, samples=None, client_factory=None):
 
     @app.get("/api/generation")
     def batches():
-        return jsonify(batches=samples.list())
+        return jsonify(batches=[batch for batch in samples.list() if batch.get("mode") == "augmentation"])
 
     @app.post("/api/generation")
     def generate():
         data = body()
-        return jsonify(samples.start(client(), data.get("mode"), data.get("labels"), data.get("count"), data.get("scenario", "普通咨询"))), 202
+        return jsonify(samples.start(client(), "augmentation", data.get("labels"), data.get("count"), data.get("scenario", "普通咨询"))), 202
 
     @app.get("/api/generation/<batch_id>")
     def batch_status(batch_id):

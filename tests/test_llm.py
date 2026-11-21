@@ -245,7 +245,7 @@ def wait_generation(samples, batch_id):
     pytest.fail("测试替身任务超时")
 
 
-def test_generation_isolation_review_and_simulation(tmp_path):
+def test_generation_isolation_and_review_rejects_simulation(tmp_path):
     samples = Samples(tmp_path / "samples", tiny_splits)
     fake = FakeClient(output={"工单": [{"文本": "麻烦客服帮忙看看活期存款还剩多少元呀", "类别": "查询余额"}]})
     try:
@@ -259,11 +259,8 @@ def test_generation_isolation_review_and_simulation(tmp_path):
         with pytest.raises(ValidationError, match="至少一条"):
             samples.train(b["id"])
         assert samples.review(b["id"], s["id"], "approved")["samples"][0]["status"] == "approved"
-        # 模拟边界永不参与训练，即使手动点击保留。
-        b2 = samples.start(fake, "simulation", ["查询余额"], 1, "多诉求")
-        b2 = wait_generation(samples, b2["id"])
-        with pytest.raises(ValidationError):
-            samples.train(b2["id"])
+        with pytest.raises(ValidationError, match="只生成训练候选"):
+            samples.start(fake, "simulation", ["查询余额"], 1, "多诉求")
     finally:
         samples.executor.shutdown(wait=True)
 
@@ -283,7 +280,7 @@ def test_duplicate_test_contamination_and_pii(tmp_path):
         samples.executor.shutdown(wait=True)
 
 
-@pytest.mark.parametrize("mode,labels,count,scenario", [("bad", ["查询余额"], 1, "普通咨询"), ("augmentation", [], 1, "普通咨询"),
+@pytest.mark.parametrize("mode,labels,count,scenario", [("simulation", ["查询余额"], 1, "普通咨询"), ("augmentation", [], 1, "普通咨询"),
     ("augmentation", ["错误"], 1, "普通咨询"), ("augmentation", ["查询余额"], True, "普通咨询"), ("augmentation", ["查询余额"], 11, "普通咨询"),
     ("augmentation", ["查询余额"], 1, "范围外")])
 def test_generation_parameter_validation(tmp_path, mode, labels, count, scenario):

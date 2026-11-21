@@ -206,6 +206,8 @@ def test_project_contract_files_and_pinned_dependencies():
         "demo/architecture.png",
         "demo/workflow.png",
         "demo/AI_ACCEPTANCE_20261121.md",
+        "demo/ai-summary-002.png",
+        "demo/data-augmentation.png",
         "tests/test_web_contract.py",
     ]
     assert all((ROOT / path).exists() for path in expected)

@@ -12,8 +12,8 @@
 | DeepSeek 契约 | 固定端点、JSON 模式、模型与超时参数、禁止重定向、错误码与超时不泄漏密钥 | `test_deepseek_contract_and_no_redirect`、`test_provider_error_does_not_leak` |
 | 摘要可靠性 | 输出约束、原文依据校验、失败不覆盖旧摘要、缺失工单不调用提供方 | `test_summary_persistence_and_fallback`、`test_summary_requires_an_existing_ticket` |
 | 密钥生命周期 | 会话隔离、清除、8 小时过期、64 会话上限 | `test_config_session_isolation_and_clear`、`test_llm_credentials_expire_after_eight_hours` |
-| 生成与审核 | 参数校验、异步状态、逐条批准、模拟样本禁止训练、下载记录 | `test_generation_api_end_to_end`、`test_generation_parameter_validation` |
-| 污染与隐私隔离 | 测试集重复样本被过滤、PII 被拒、校准／验证／测试文本不进入生成提示 | `test_duplicate_test_contamination_and_pii`、`test_generation_isolation_review_and_simulation` |
+| 生成与审核 | 参数校验、异步状态、逐条批准、训练隔离和下载记录 | `test_generation_api_end_to_end`、`test_generation_parameter_validation` |
+| 污染与隐私隔离 | 测试集重复样本被过滤、PII 被拒、校准／验证／测试文本不进入生成提示 | `test_duplicate_test_contamination_and_pii`、`test_generation_isolation_and_review_rejects_simulation` |
 | 候选模型实验 | 基础模型和划分不变、候选独立保存、测试集不参与选择、激活需显式确认 | `test_candidate_training_preserves_baseline_and_splits` |
 | HTTP 路由 | 19 个公开路由规则及其允许方法逐项核对，包括页面静态资源规则 | `test_route_contract_covers_every_public_entry` |
 | 页面与静态资源 | 首页、CSS、JS 可访问；脚本引用的 DOM 节点存在；本机仓库链接有效 | `test_static_assets_and_security_headers`、`test_frontend_dom_contract_matches_scripts` |

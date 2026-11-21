@@ -67,16 +67,14 @@ class Samples:
         return sorted(batches, key=lambda b: b["created_at"], reverse=True)[:100]
 
     def start(self, client, mode, labels, count, scenario="普通咨询"):
-        if mode not in {"augmentation", "simulation"}:
-            raise ValidationError("请选择训练增强或模拟工单")
+        if mode != "augmentation":
+            raise ValidationError("数据增强只生成训练候选")
         if not isinstance(labels, list) or not 1 <= len(labels) <= 14 or any(not isinstance(x, str) or x not in MAPPING for x in labels) or len(set(labels)) != len(labels):
             raise ValidationError("请选择1至14个合法且不重复的类别")
         if type(count) is not int or not 1 <= count <= 10:
             raise ValidationError("每类生成数量须为1至10")
-        if scenario not in {"普通咨询", "口语与错别字", "多诉求", "范围外", "信息不足", "敏感请求"}:
-            raise ValidationError("模拟场景不合法")
-        if mode == "augmentation" and scenario not in {"普通咨询", "口语与错别字"}:
-            raise ValidationError("训练增强仅允许单类别普通咨询或口语表达；边界场景只能模拟")
+        if scenario not in {"普通咨询", "口语与错别字"}:
+            raise ValidationError("训练增强仅允许普通咨询或口语表达")
         splits = self.split_loader()  # 在调用 API 前先验证本地数据完整性。
         batch = {"id": uuid.uuid4().hex, "created_at": now(), "status": "queued", "mode": mode,
                  "labels": labels, "per_class": count, "scenario": scenario, "progress": 0,
@@ -111,7 +109,7 @@ class Samples:
                         "所有内容必须虚构，不含个人身份、真实卡号、手机号、口令。"
                         "输出 JSON：{\"工单\":[{\"文本\":\"客户中文咨询\",\"类别\":\"给定目标类别\"}]}。"
                         "严格返回指定条数，每条8至200字符。训练增强只表达一个给定类别，不混入其他类别。"
-                        + ("本次为边界场景模拟，目标类别只作为背景标签，不保证可自动分流。" if batch["mode"] == "simulation" else "变换措辞、句式和语境，确保仍属于目标类别。"),
+                        "变换措辞、句式和语境，确保仍属于目标类别。",
                         prompt, temperature=0.8, max_tokens=3500)
                     rows = result.get("工单")
                     if not isinstance(rows, list) or len(rows) != batch["per_class"]:
@@ -127,7 +125,7 @@ class Samples:
                         batch["samples"].append({"id": uuid.uuid4().hex, "text": redact(text), "label": label,
                                                  "status": "filtered" if reason else "pending", "filter_reason": reason,
                                                  "seed_ids": [s["id"] for s in seeds], "source": "大模型合成",
-                                                 "training_allowed": batch["mode"] == "augmentation"})
+                                                 "training_allowed": True})
                 except LLMError as exc:
                     batch["errors"].append(label + "：" + str(exc))
                 batch["progress"] += 1
@@ -183,7 +181,7 @@ class Samples:
                 raise ConflictError("已有生成或训练任务运行，请等待完成")
             approved = [copy.deepcopy(s) for s in batch["samples"] if s["status"] == "approved" and s["training_allowed"]]
             if batch["mode"] != "augmentation" or not approved:
-                raise ValidationError("请先人工审核并保留至少一条训练增强样本；模拟工单不能用于训练")
+                raise ValidationError("请先人工审核并保留至少一条训练增强样本")
             if batch["status"] in {"queued", "running"}:
                 raise ConflictError("请等待生成完成")
             self.busy = True
