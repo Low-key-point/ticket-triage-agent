@@ -20,7 +20,7 @@
 
 <section id="tab-settings" class="tab" hidden><article class="panel settings-panel"><div class="panel-heading"><h2>接入 DeepSeek</h2><span id="llm-badge" class="tag">尚未配置</span></div>
 <p class="helper">分类模型在本机运行；测试连接、生成摘要和生成工单会调用 DeepSeek 官方接口并可能计费。候选模型训练在本机进行。</p>
-<label for="llm-key">API 密钥</label><input id="llm-key" type="password" autocomplete="off" placeholder="在这里填写本机密钥，不要发在聊天中">
+<label for="llm-key">API 密钥</label><input id="llm-key" type="password" autocomplete="off" placeholder="在这里填写本机 DeepSeek API 密钥">
 <label for="llm-model">模型名称</label><input id="llm-model" value="deepseek-flash" maxlength="80"><p class="helper">默认采用官方文档当前列出的 deepseek-flash，使用非思考模式。也可填写你账户可用、支持 JSON 的模型名称。</p>
 <div class="actions"><button id="save-llm" class="secondary">保存到本次服务内存</button><button id="test-llm" class="secondary">测试实际连接（调用 API）</button><button id="disconnect-llm" class="secondary">清除密钥配置</button></div><p id="llm-status" class="notice"></p>
 <p class="helper">接口固定为 https://api.deepseek.com。密钥不写文件、不放在浏览器持久存储、不上传 GitHub；服务端内存配置8小时后过期，重启服务后清除。关闭页面不等于清除配置；清除配置不取消已发出的请求。脱敏是启发式处理，请勿输入真实客户隐私。</p>

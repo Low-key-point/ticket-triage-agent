@@ -86,6 +86,7 @@ def test_frontend_dom_contract_matches_scripts():
         "submit", "confirm-review", "save-llm", "generate", "train-candidate",
     } <= declared_ids
     assert "https://github.com/Low-key-point/ticket-triage-agent" in html
+    assert "不要发在聊天中" not in html
 
 
 def test_read_and_local_workflow_endpoints(web_components):
