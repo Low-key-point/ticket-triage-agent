@@ -13,6 +13,7 @@
 | [Agent 工作流](demo/workflow.png) | 自动分流、转人工和持久化的状态路径 |
 | [模型对比](demo/model-comparison.png) | 基线、未校准模型与最终校准模型的宏平均 F1 |
 | [分流策略对比](demo/routing-comparison.png) | 自动覆盖率与自动队列精确率之间的取舍 |
+| [DeepSeek 功能验收](demo/AI_ACCEPTANCE_20261121.md) | 实际连接、摘要生成、模拟工单生成与训练隔离结果 |
 | [测试矩阵](TEST_MATRIX.md) | 功能、断言和证据的对应关系 |
 
 ## 5 分钟本地演示
